@@ -33,13 +33,16 @@ class Assignment2 {
       System.out.printf("Database connection %s %s established.%n",
         dburl, username);
 
+      showCompanies();
+
       conn.close();
+      System.out.printf("Connection closed.%n");
     } catch (SQLException ex) {
       System.out.printf("SQLException: %s%nSQLState: %s%nVendor Error: %s%n",
         ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
     }
   }
-/*
+
   static void showCompanies() throws SQLException {
     Statement stmt = conn.createStatement();
     ResultSet results = stmt.executeQuery("select Ticker, Name from Company");
@@ -51,10 +54,9 @@ class Assignment2 {
 
     stmt.close();
   }
-  */
-/*
+
   static void showTickerDay(String ticker, String date) throws SQLException {
-    PreparedStatement pstmt = conn.PreparedStatement(
+    PreparedStatement pstmt = conn.prepareStatement(
       "select OpenPrice, ClosePrice, HighPrice, LowPrice " +
       " from PriceVolume " +
       " where Ticker = ? and TransDate = ?");
@@ -70,5 +72,4 @@ class Assignment2 {
     }
     pstmt.close();
   }
-*/
 }
