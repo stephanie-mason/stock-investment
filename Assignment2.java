@@ -54,12 +54,14 @@ class Assignment2 {
 					else {
 					
 					findCompanyName(ticker);						
-					
+						
 						if (numArgs == 3) {
 							startDate = inputArgs[1];
 							endDate = inputArgs [2];
-							showTickerDay(ticker, startDate);			
-						}				
+							showDates(ticker, startDate, endDate);			
+						}	else {
+								showPriceVolume(ticker, "1980.01.01");
+						}			
 					}
 				} else {
 					continueLoop = false;
@@ -74,6 +76,7 @@ class Assignment2 {
     } catch (SQLException ex) {
       System.out.printf("SQLException: %s%nSQLState: %s%nVendor Error: %s%n",
         ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
+				conn.close();
     }
   }
 
@@ -91,18 +94,22 @@ class Assignment2 {
   }
 
   //Retrieve information from PriceVolume
-	static void showTickerDay(String ticker, String date) throws SQLException {
+	static void showPriceVolume(String ticker, String date)
+	throws SQLException {
     PreparedStatement pstmt = conn.prepareStatement(
-      "select OpenPrice, ClosePrice, HighPrice, LowPrice " +
+      "select * " +
       " from PriceVolume " +
-      " where Ticker = ? and TransDate = ?");
+      " where Ticker = ? and TransDate = ? order by TransDate DESC");
     pstmt.setString(1, ticker);
-    pstmt.setString(2, date);
+		pstmt.setString(2, date);
     ResultSet rs = pstmt.executeQuery();
 
     if (rs.next()) {
-      System.out.printf("Open: %.2f, High: %.2f, Low: %.2f, Close: %.2f%n",
-        rs.getDouble(1), rs.getDouble(2), rs.getDouble(3), rs.getDouble(4));
+      System.out.printf("Ticker: %s Date: %s Open: %.2f, High: %.2f, Low: %.2f, " +
+			 "Close: %.2f, Volume: %.2f, AdjustedClose: %.2f %n",
+        rs.getString("Ticker"), rs.getString("TransDate"), rs.getDouble("OpenPrice"), 
+				rs.getDouble("HighPrice"), rs.getDouble("LowPrice"), rs.getDouble("ClosePrice"),
+				rs.getDouble("Volume"), rs.getDouble("AdjustedClose"));
     } else {
       System.out.printf("Ticker %s, Date %s not found.%n", ticker, date);
     }
@@ -126,15 +133,24 @@ class Assignment2 {
   }
 	
 	//Helper function to view dates of a given company
-	static void showDates(String ticker) throws SQLException {
+	static void showDates(String ticker, String startDate, String endDate)
+	throws SQLException {
 		PreparedStatement pstmt = conn.prepareStatement(
-			"select TransDate from PriceVolume where Ticker = ?"
+			"select TransDate from PriceVolume where Ticker = ? order by TransDate DESC"
 		);
 		pstmt.setString(1, ticker);
 		ResultSet rs = pstmt.executeQuery();
 
+		boolean printDate = false;
 		while (rs.next()) {
-			System.out.printf(rs.getString("TransDate") + "%n");
+			if (rs.getString("TransDate").equals(endDate) || 
+					rs.getString("TransDate") == "2014.08.18" || 
+					printDate == true) {
+				System.out.printf(rs.getString("TransDate") + "%n");
+				printDate = true;
+			} if (rs.getString("TransDate").equals(startDate)) {
+				printDate = false;
+			}
 		}	
 	}
 
