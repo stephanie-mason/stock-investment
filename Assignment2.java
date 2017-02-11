@@ -111,18 +111,25 @@ range (or all of the data for a ticker if no date range is given)
     boolean continueLoop = false;
     String prevDate = null;
     String currDate = null;
+    int numSplits = 0;
+    int numTradeDays = 0;
 
     while (rs.next()) {
       prevDate = currDate;
       currDate = rs.getString("TransDate");
       if (currDate.equals(endDate) ||
       continueLoop == true) {
-        doTheThings(ticker, currDate, prevDate);
+        if (findSplits(ticker, currDate, prevDate)) {
+          numSplits++;
+        }
+        numTradeDays++;
         continueLoop = true;
       } if (currDate.equals(startDate)) {
         continueLoop = false;
       }
     }
+    System.out.printf("%d splits in %d trading days%n",
+    numSplits, numTradeDays);
     pstmt.close();
   }
   //This one shows all the dates if given only a ticker
@@ -137,12 +144,19 @@ range (or all of the data for a ticker if no date range is given)
     ResultSet rs = pstmt.executeQuery();
     String prevDate = null;
     String currDate = null;
+    int numSplits = 0;
+    int numTradeDays = 0;
 
     while(rs.next()) {
       prevDate = currDate;
       currDate = rs.getString("TransDate");
-      doTheThings(ticker, currDate, prevDate);
+      if (findSplits(ticker, currDate, prevDate)) {
+        numSplits++;
+      }
+      numTradeDays++;
     }
+    System.out.printf("%d splits in %d trading days%n",
+    numSplits, numTradeDays);
     pstmt.close();
   }
 
@@ -152,13 +166,14 @@ range (or all of the data for a ticker if no date range is given)
 //What are we doing here... we need to:
 // Create a stock day for the current day
 // run the split comparison against the previous day
-// if there is a list, add it to the split list
+// if there is a split, print it
 // update the divisor
 // at the end of everything print the split list
-static void doTheThings(String ticker, String currDate, String prevDate)
+static boolean findSplits(String ticker, String currDate, String prevDate)
 throws SQLException {
-  StockDay prevDay = makeStockDay(ticker, prevDate);
   StockDay currDay = makeStockDay(ticker, currDate);
+  StockDay prevDay = null;
+  if (prevDate != null) prevDay = makeStockDay(ticker, prevDate);
 
   // Check for splits
   // Keep in mind that in this case, prevDay is the day on the previous
@@ -188,8 +203,11 @@ throws SQLException {
 
     if (didSplit == true) {
       System.out.println(splitType + " split on " + currDate);
+      return true;
     }
   }
+
+  return false;
 }
 
 
