@@ -202,7 +202,9 @@ throws SQLException {
     }
 
     if (didSplit == true) {
-      System.out.println(splitType + " split on " + currDate);
+      //System.out.println(splitType + " split on " + currDate);
+      System.out.printf("%s split on %s %.2f -> %.2f %n",
+      splitType, currDate, currClosePrice, prevOpenPricePrice);
       return true;
     }
   }
