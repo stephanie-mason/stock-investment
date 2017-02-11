@@ -100,8 +100,6 @@ range (or all of the data for a ticker if no date range is given)
 *******************************************************************************/
   static void runDates(String ticker, String startDate, String endDate)
   throws SQLException {
-    StockDay currDay  = null;
-    StockDay prevDay = null;
     PreparedStatement pstmt = conn.prepareStatement(
     "select TransDate " +
     " from PriceVolume " +
@@ -110,14 +108,16 @@ range (or all of the data for a ticker if no date range is given)
     );
     pstmt.setString(1, ticker);
     ResultSet rs = pstmt.executeQuery();
-
     boolean continueLoop = false;
-    String currDate;
+    String prevDate = null;
+    String currDate = null;
+
     while (rs.next()) {
+      prevDate = currDate;
       currDate = rs.getString("TransDate");
       if (currDate.equals(endDate) ||
       continueLoop == true) {
-        currDay = makeStockDay(ticker, currDate);
+        doTheThings(ticker, currDate, prevDate);
         continueLoop = true;
       } if (currDate.equals(startDate)) {
         continueLoop = false;
@@ -135,8 +135,13 @@ range (or all of the data for a ticker if no date range is given)
     );
     pstmt.setString(1, ticker);
     ResultSet rs = pstmt.executeQuery();
+    String prevDate = null;
+    String currDate = null;
+
     while(rs.next()) {
-      makeStockDay(ticker, rs.getString("TransDate"));
+      prevDate = currDate;
+      currDate = rs.getString("TransDate");
+      doTheThings(ticker, currDate, prevDate);
     }
     pstmt.close();
   }
@@ -150,6 +155,49 @@ range (or all of the data for a ticker if no date range is given)
 // if there is a list, add it to the split list
 // update the divisor
 // at the end of everything print the split list
+static void doTheThings(String ticker, String currDate, String prevDate)
+throws SQLException {
+  StockDay prevDay = makeStockDay(ticker, prevDate);
+  StockDay currDay = makeStockDay(ticker, currDate);
+
+  // Check for splits
+  // Keep in mind that in this case, prevDay is the day on the previous
+  // line, but because the days are listed in revers chronological order
+  // prevDay is actually the following day
+  if (prevDay != null) {
+    double currClosePrice = currDay.getClosingPrice();
+    double prevOpenPricePrice = prevDay.getOpeningPrice();
+    boolean didSplit = false;
+    String splitType = "none";
+
+    // 2:1 split
+    if (Math.abs((currClosePrice/prevOpenPricePrice) - 2.0) < 0.20) {
+      didSplit = true;
+      splitType = "2:1";
+    }
+    // 3:1 split
+    if (Math.abs((currClosePrice/prevOpenPricePrice) - 3.0) < 0.30) {
+      didSplit = true;
+      splitType = "3:1";
+    }
+    // 3:2 split
+    if (Math.abs((currClosePrice/prevOpenPricePrice) - 1.5) < 0.15) {
+      didSplit = true;
+      splitType = "3:2";
+    }
+
+    if (didSplit == true) {
+      System.out.println(splitType + " split on " + currDate);
+    }
+  }
+}
+
+
+/*******************************************************************************
+  makeStockDay
+
+  Create a StockDay object with a given set of data from PriceVolume relation
+*******************************************************************************/
 static StockDay makeStockDay(String ticker, String date)
 throws SQLException {
   StockDay thisStockDay = null;
@@ -162,13 +210,6 @@ throws SQLException {
   ResultSet rs = pstmt.executeQuery();
 
   if (rs.next()) {
-    /*System.out.printf("Ticker: %s Date: %s Open: %.2f, High: %.2f, " +
-    " Low: %.2f, Close: %.2f, Volume: %.2f, AdjustedClose: %.2f %n",
-    rs.getString("Ticker"), rs.getString("TransDate"),
-    rs.getDouble("OpenPrice"), rs.getDouble("HighPrice"),
-    rs.getDouble("LowPrice"), rs.getDouble("ClosePrice"),
-    rs.getDouble("Volume"), rs.getDouble("AdjustedClose"));*/
-
     double openingPrice = rs.getDouble("OpenPrice");
     double highPrice = rs.getDouble("HighPrice");
     double lowPrice = rs.getDouble("LowPrice");
@@ -177,7 +218,6 @@ throws SQLException {
     double adjustedClosingPrice = rs.getDouble("AdjustedClose");
     thisStockDay = new StockDay(ticker, date, openingPrice, highPrice,
     lowPrice, closingPrice, volumeOfShares, adjustedClosingPrice);
-
   } else {
     System.out.printf("Ticker %s, Date %s not found.%n", ticker, date);
   }
