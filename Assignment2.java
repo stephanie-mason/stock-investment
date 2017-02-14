@@ -113,6 +113,8 @@ range (or all of the data for a ticker if no date range is given)
     String prevDate = null;
     String currDate = null;
     ArrayList<StockDay> allDays = new ArrayList<StockDay>();
+    StockDay currStockDay = null;
+    StockDay prevStockDay = null;
     int numSplits = 0;
     int numTradeDays = 0;
     int divisor = 1;
@@ -120,12 +122,14 @@ range (or all of the data for a ticker if no date range is given)
     while (rs.next()) {
       prevDate = currDate;
       currDate = rs.getString("TransDate");
+      if (currStockDay != null) prevStockDay = currStockDay;
+      currStockDay = makeStockDay(ticker, currDate);
 
       // Run for given input dates
       if (dates.length > 0) {
         if (currDate.equals(dates[1]) ||
         continueLoop == true) {
-          if (findSplits(ticker, currDate, prevDate)) {
+          if (findSplits(currStockDay, prevStockDay)) {
             numSplits++;
             divisor = divisor*2;
           }
@@ -137,7 +141,7 @@ range (or all of the data for a ticker if no date range is given)
       }
       // Run for all dates (if not given input dates)
       else {
-        if (findSplits(ticker, currDate, prevDate)) {
+        if (findSplits(currStockDay, prevStockDay)) {
           numSplits++;
           divisor = divisor*2;
         }
@@ -159,19 +163,15 @@ range (or all of the data for a ticker if no date range is given)
 // if there is a split, print it
 // update the divisor
 // at the end of everything print the split list
-static boolean findSplits(String ticker, String currDate, String prevDate)
+static boolean findSplits(StockDay currStockDay, StockDay prevStockDay)
 throws SQLException {
-  StockDay currDay = makeStockDay(ticker, currDate);
-  StockDay prevDay = null;
-  if (prevDate != null) prevDay = makeStockDay(ticker, prevDate);
-
   // Check for splits
-  // Keep in mind that in this case, prevDay is the day on the previous
+  // Keep in mind that in this case, prevStockDay is the day on the previous
   // line, but because the days are listed in revers chronological order
-  // prevDay is actually the following day
-  if (prevDay != null) {
-    double currClosePrice = currDay.getClosingPrice();
-    double prevOpenPricePrice = prevDay.getOpeningPrice();
+  // prevStockDay is actually the following day
+  if (prevStockDay != null) {
+    double currClosePrice = currStockDay.getClosingPrice();
+    double prevOpenPricePrice = prevStockDay.getOpeningPrice();
     boolean didSplit = false;
     String splitType = "none";
 
@@ -193,6 +193,7 @@ throws SQLException {
 
     if (didSplit == true) {
       //System.out.println(splitType + " split on " + currDate);
+      String currDate = currStockDay.getDate();
       System.out.printf("%s split on %s %.2f -> %.2f %n",
       splitType, currDate, currClosePrice, prevOpenPricePrice);
       return true;
