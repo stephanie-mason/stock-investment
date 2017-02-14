@@ -117,12 +117,12 @@ range (or all of the data for a ticker if no date range is given)
     int numTradeDays = 0;
     int divisor = 1;
 
-    if (dates.length > 0) {
-      while (rs.next()) {
-        prevDate = currDate;
-        currDate = rs.getString("TransDate");
+    while (rs.next()) {
+      prevDate = currDate;
+      currDate = rs.getString("TransDate");
 
-        // Run for given input dates
+      // Run for given input dates
+      if (dates.length > 0) {
         if (currDate.equals(dates[1]) ||
         continueLoop == true) {
           if (findSplits(ticker, currDate, prevDate)) {
@@ -135,56 +135,20 @@ range (or all of the data for a ticker if no date range is given)
           continueLoop = false;
         }
       }
-    }
-
-    // Run for all dates (if not given input dates)
-    else {
-      while(rs.next()) {
-        prevDate = currDate;
-        currDate = rs.getString("TransDate");
+      // Run for all dates (if not given input dates)
+      else {
         if (findSplits(ticker, currDate, prevDate)) {
           numSplits++;
           divisor = divisor*2;
         }
         numTradeDays++;
       }
-
-      System.out.printf("%d splits in %d trading days%n",
-      numSplits, numTradeDays);
-      pstmt.close();
     }
-  }
 
-  //This one shows all the dates if given only a ticker
-  /*
-  static void runDates(String ticker) throws SQLException {
-    PreparedStatement pstmt = conn.prepareStatement(
-    "select TransDate " +
-    " from PriceVolume " +
-    " where Ticker = ?  " +
-    " order by TransDate DESC"
-    );
-    pstmt.setString(1, ticker);
-    ResultSet rs = pstmt.executeQuery();
-    String prevDate = null;
-    String currDate = null;
-    int numSplits = 0;
-    int numTradeDays = 0;
-    int divisor = 1;
-
-    while(rs.next()) {
-      prevDate = currDate;
-      currDate = rs.getString("TransDate");
-      if (findSplits(ticker, currDate, prevDate)) {
-        numSplits++;
-        divisor = divisor*2;
-      }
-      numTradeDays++;
-    }
     System.out.printf("%d splits in %d trading days%n",
     numSplits, numTradeDays);
     pstmt.close();
-  } */
+  }
 
 /*******************************************************************************
   doTheThings
