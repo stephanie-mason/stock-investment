@@ -10,6 +10,7 @@
 import java.util.Properties;
 import java.util.Scanner;
 import java.io.FileInputStream;
+import java.util.ArrayList;
 import java.sql.*;
 
 class Assignment2 {
@@ -98,7 +99,7 @@ runDates
 Iterates through data  in reverse chronological order within a given date
 range (or all of the data for a ticker if no date range is given)
 *******************************************************************************/
-  static void runDates(String ticker, String startDate, String endDate)
+  static void runDates(String ticker, String ... dates)
   throws SQLException {
     PreparedStatement pstmt = conn.prepareStatement(
     "select TransDate " +
@@ -111,28 +112,51 @@ range (or all of the data for a ticker if no date range is given)
     boolean continueLoop = false;
     String prevDate = null;
     String currDate = null;
+    ArrayList<StockDay> allDays = new ArrayList<StockDay>();
     int numSplits = 0;
     int numTradeDays = 0;
+    int divisor = 1;
 
-    while (rs.next()) {
-      prevDate = currDate;
-      currDate = rs.getString("TransDate");
-      if (currDate.equals(endDate) ||
-      continueLoop == true) {
-        if (findSplits(ticker, currDate, prevDate)) {
-          numSplits++;
+    if (dates.length > 0) {
+      while (rs.next()) {
+        prevDate = currDate;
+        currDate = rs.getString("TransDate");
+
+        // Run for given input dates
+        if (currDate.equals(dates[1]) ||
+        continueLoop == true) {
+          if (findSplits(ticker, currDate, prevDate)) {
+            numSplits++;
+            divisor = divisor*2;
+          }
+          numTradeDays++;
+          continueLoop = true;
+        } if (currDate.equals(dates[0])) {
+          continueLoop = false;
         }
-        numTradeDays++;
-        continueLoop = true;
-      } if (currDate.equals(startDate)) {
-        continueLoop = false;
       }
     }
-    System.out.printf("%d splits in %d trading days%n",
-    numSplits, numTradeDays);
-    pstmt.close();
+
+    // Run for all dates (if not given input dates)
+    else {
+      while(rs.next()) {
+        prevDate = currDate;
+        currDate = rs.getString("TransDate");
+        if (findSplits(ticker, currDate, prevDate)) {
+          numSplits++;
+          divisor = divisor*2;
+        }
+        numTradeDays++;
+      }
+
+      System.out.printf("%d splits in %d trading days%n",
+      numSplits, numTradeDays);
+      pstmt.close();
+    }
   }
+
   //This one shows all the dates if given only a ticker
+  /*
   static void runDates(String ticker) throws SQLException {
     PreparedStatement pstmt = conn.prepareStatement(
     "select TransDate " +
@@ -146,19 +170,21 @@ range (or all of the data for a ticker if no date range is given)
     String currDate = null;
     int numSplits = 0;
     int numTradeDays = 0;
+    int divisor = 1;
 
     while(rs.next()) {
       prevDate = currDate;
       currDate = rs.getString("TransDate");
       if (findSplits(ticker, currDate, prevDate)) {
         numSplits++;
+        divisor = divisor*2;
       }
       numTradeDays++;
     }
     System.out.printf("%d splits in %d trading days%n",
     numSplits, numTradeDays);
     pstmt.close();
-  }
+  } */
 
 /*******************************************************************************
   doTheThings
@@ -208,7 +234,6 @@ throws SQLException {
       return true;
     }
   }
-
   return false;
 }
 
