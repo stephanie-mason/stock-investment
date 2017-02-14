@@ -39,17 +39,6 @@ public class StockDay {
     this.adjustedClosingPrice = adjustedClosingPrice;
   }
 
-  // Check for Crazy Days
-  // a crazy day is defined as a day in which the price fluctiation is greater
-  // than 15%
-  public boolean isCrazyDay() {
-    double priceDif = getPriceDif();
-    if (priceDif >= 0.15){
-      return true;
-    }
-    return false;
-  }
-
   // Methods to return attributes
   public double getPriceDif() {
     double priceDif = (highPrice-lowPrice)/highPrice;
@@ -66,5 +55,13 @@ public class StockDay {
   }
   public double getClosingPrice(){
     return this.closingPrice;
+  }
+
+  // Method to adjust the prices of stocks if a split has occured
+  public void adjustPrices(int divisor) {
+    this.openingPrice = this.openingPrice / divisor;
+    this.highPrice = this.highPrice / divisor;
+    this.lowPrice = this.lowPrice / divisor;
+    this.closingPrice = this.closingPrice / divisor;
   }
 }

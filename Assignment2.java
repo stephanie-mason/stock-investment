@@ -37,6 +37,8 @@ class Assignment2 {
       //Get ticker/date input from user for as long as they want to give it
       Scanner sc = new Scanner(System.in);
       boolean continueLoop = true;
+      ArrayList<StockDay> setOfStockDays = new ArrayList<StockDay>();
+
       while (continueLoop) {
         System.out.printf("Enter a ticker symbol [start/end dates]: ");
         String input = sc.nextLine();
@@ -52,15 +54,17 @@ class Assignment2 {
           }
           else {
 /*******************************************************************************
-This is where most of the interesting stuff happens
+  This is where most of the interesting stuff happens
 *******************************************************************************/
             findCompanyName(ticker);
             if (numArgs == 3) {
               startDate = inputArgs[1];
               endDate = inputArgs [2];
-              runDates(ticker, startDate, endDate);
+              setOfStockDays = runDates(ticker, startDate, endDate);
+              investStrategy(setOfStockDays);
             }	else {
-              runDates(ticker);
+              setOfStockDays = runDates(ticker);
+              investStrategy(setOfStockDays);
             }
 /******************************************************************************/
           }
@@ -98,8 +102,10 @@ This is where most of the interesting stuff happens
 runDates
 Iterates through data  in reverse chronological order within a given date
 range (or all of the data for a ticker if no date range is given)
+  * Adds each day to an arrayList - this list is returned
+  * Checks for splits as it runs through the data and prints to screen
 *******************************************************************************/
-  static void runDates(String ticker, String ... dates)
+  static ArrayList<StockDay> runDates(String ticker, String ... dates)
   throws SQLException {
     PreparedStatement pstmt = conn.prepareStatement(
     "select TransDate " +
@@ -121,86 +127,93 @@ range (or all of the data for a ticker if no date range is given)
 
     while (rs.next()) {
       prevDate = currDate;
+      prevStockDay = currStockDay;
       currDate = rs.getString("TransDate");
-      if (currStockDay != null) prevStockDay = currStockDay;
       currStockDay = makeStockDay(ticker, currDate);
+      currStockDay.adjustPrices(divisor);
 
-      // Run for given input dates
+      // Check for Splits for given input dates
       if (dates.length > 0) {
         if (currDate.equals(dates[1]) ||
         continueLoop == true) {
-          if (findSplits(currStockDay, prevStockDay)) {
+          if (findSplits(currStockDay, prevStockDay, divisor)) {
             numSplits++;
             divisor = divisor*2;
           }
           numTradeDays++;
+          allDays.add(currStockDay);
           continueLoop = true;
         } if (currDate.equals(dates[0])) {
           continueLoop = false;
         }
       }
-      // Run for all dates (if not given input dates)
+      // Check for Splits for all dates (if not given input dates)
       else {
-        if (findSplits(currStockDay, prevStockDay)) {
+        if (findSplits(currStockDay, prevStockDay, divisor)) {
           numSplits++;
           divisor = divisor*2;
         }
         numTradeDays++;
+        allDays.add(currStockDay);
       }
     }
 
     System.out.printf("%d splits in %d trading days%n",
     numSplits, numTradeDays);
     pstmt.close();
+
+    return allDays;
   }
 
 /*******************************************************************************
-  doTheThings
+doTheThings
 *******************************************************************************/
-//What are we doing here... we need to:
-// Create a stock day for the current day
-// run the split comparison against the previous day
-// if there is a split, print it
-// update the divisor
-// at the end of everything print the split list
-static boolean findSplits(StockDay currStockDay, StockDay prevStockDay)
-throws SQLException {
-  // Check for splits
-  // Keep in mind that in this case, prevStockDay is the day on the previous
-  // line, but because the days are listed in revers chronological order
-  // prevStockDay is actually the following day
-  if (prevStockDay != null) {
-    double currClosePrice = currStockDay.getClosingPrice();
-    double prevOpenPricePrice = prevStockDay.getOpeningPrice();
-    boolean didSplit = false;
-    String splitType = "none";
+  //What are we doing here... we need to:
+  // Create a stock day for the current day
+  // run the split comparison against the previous day
+  // if there is a split, print it
+  // update the divisor
+  // at the end of everything print the split list
+  static boolean findSplits(StockDay currStockDay, StockDay prevStockDay,
+    int adjust)
+  throws SQLException {
+    // Check for splits
+    // Keep in mind that in this case, prevStockDay is the day on the previous
+    // line, but because the days are listed in revers chronological order
+    // prevStockDay is actually the following day
+    if (prevStockDay != null) {
+      double currClosePrice = currStockDay.getClosingPrice();
+      double prevOpenPricePrice = prevStockDay.getOpeningPrice();
+      boolean didSplit = false;
+      String splitType = "none";
 
-    // 2:1 split
-    if (Math.abs((currClosePrice/prevOpenPricePrice) - 2.0) < 0.20) {
-      didSplit = true;
-      splitType = "2:1";
-    }
-    // 3:1 split
-    if (Math.abs((currClosePrice/prevOpenPricePrice) - 3.0) < 0.30) {
-      didSplit = true;
-      splitType = "3:1";
-    }
-    // 3:2 split
-    if (Math.abs((currClosePrice/prevOpenPricePrice) - 1.5) < 0.15) {
-      didSplit = true;
-      splitType = "3:2";
-    }
+      // 2:1 split
+      if (Math.abs((currClosePrice/prevOpenPricePrice) - 2.0) < 0.20) {
+        didSplit = true;
+        splitType = "2:1";
+      }
+      // 3:1 split
+      if (Math.abs((currClosePrice/prevOpenPricePrice) - 3.0) < 0.30) {
+        didSplit = true;
+        splitType = "3:1";
+      }
+      // 3:2 split
+      if (Math.abs((currClosePrice/prevOpenPricePrice) - 1.5) < 0.15) {
+        didSplit = true;
+        splitType = "3:2";
+      }
 
-    if (didSplit == true) {
-      //System.out.println(splitType + " split on " + currDate);
-      String currDate = currStockDay.getDate();
-      System.out.printf("%s split on %s %.2f -> %.2f %n",
-      splitType, currDate, currClosePrice, prevOpenPricePrice);
-      return true;
+      if (didSplit == true) {
+        //System.out.println(splitType + " split on " + currDate);
+        String currDate = currStockDay.getDate();
+        System.out.printf("%s split on %s %.2f -> %.2f %n",
+        splitType, currDate,
+        currClosePrice*adjust, prevOpenPricePrice*adjust);
+        return true;
+      }
     }
+    return false;
   }
-  return false;
-}
 
 
 /*******************************************************************************
@@ -208,88 +221,76 @@ throws SQLException {
 
   Create a StockDay object with a given set of data from PriceVolume relation
 *******************************************************************************/
-static StockDay makeStockDay(String ticker, String date)
-throws SQLException {
-  StockDay thisStockDay = null;
-  PreparedStatement pstmt = conn.prepareStatement(
-  "select * " +
-  " from PriceVolume " +
-  " where Ticker = ? and TransDate = ?");
-  pstmt.setString(1, ticker);
-  pstmt.setString(2, date);
-  ResultSet rs = pstmt.executeQuery();
+  static StockDay makeStockDay(String ticker, String date)
+  throws SQLException {
+    StockDay thisStockDay = null;
+    PreparedStatement pstmt = conn.prepareStatement(
+    "select * " +
+    " from PriceVolume " +
+    " where Ticker = ? and TransDate = ?");
+    pstmt.setString(1, ticker);
+    pstmt.setString(2, date);
+    ResultSet rs = pstmt.executeQuery();
 
-  if (rs.next()) {
-    double openingPrice = rs.getDouble("OpenPrice");
-    double highPrice = rs.getDouble("HighPrice");
-    double lowPrice = rs.getDouble("LowPrice");
-    double closingPrice = rs.getDouble("ClosePrice");
-    double volumeOfShares = rs.getDouble("Volume");
-    double adjustedClosingPrice = rs.getDouble("AdjustedClose");
-    thisStockDay = new StockDay(ticker, date, openingPrice, highPrice,
-    lowPrice, closingPrice, volumeOfShares, adjustedClosingPrice);
-  } else {
-    System.out.printf("Ticker %s, Date %s not found.%n", ticker, date);
+    if (rs.next()) {
+      double openingPrice = rs.getDouble("OpenPrice");
+      double highPrice = rs.getDouble("HighPrice");
+      double lowPrice = rs.getDouble("LowPrice");
+      double closingPrice = rs.getDouble("ClosePrice");
+      double volumeOfShares = rs.getDouble("Volume");
+      double adjustedClosingPrice = rs.getDouble("AdjustedClose");
+      thisStockDay = new StockDay(ticker, date, openingPrice, highPrice,
+      lowPrice, closingPrice, volumeOfShares, adjustedClosingPrice);
+    } else {
+      System.out.printf("Ticker %s, Date %s not found.%n", ticker, date);
+    }
+    pstmt.close();
+
+    return thisStockDay;
   }
-  pstmt.close();
-
-  return thisStockDay;
-}
 
 /*******************************************************************************
-findSplits
-Runs through data  in reverse chronological order
-As it does, compares each successive day to the previous in order to check
-for stock splits. If a split is found, the remaining days are updated to
-reflect their actual value with the split applied.
+  investStrategy
+
+  iterate through stock days in chronological order.
 *******************************************************************************/
-  static void findSplits(String ticker) {
-
-  }
-
-
-
-
-}
-
-/* Function Graveyard */
+  static void investStrategy(ArrayList<StockDay> setOfStockDays) {
+    for(int i = setOfStockDays.size()-1; i >= 0; i--) {
+      StockDay   currStockDay = setOfStockDays.get(i);
+      System.out.printf("%s %.2f %.2f %n",
+        currStockDay.getDate(),
+        currStockDay.getOpeningPrice(),
+        currStockDay.getClosingPrice());
+    }
 /*
-//Print a list of all companies
-static void showCompanies() throws SQLException {
-Statement stmt = conn.createStatement();
-ResultSet results = stmt.executeQuery("select Ticker, Name from Company");
-
-while (results.next()) {
-System.out.printf("%5s, %s%n",
-results.getString("Ticker"), results.getString("Name"));
-}
-
-stmt.close();
-}
-
-
-//Print information from PriceVolume for a given ticker/date
-// (Helper function)
-static void showPriceVolume(String ticker, String date)
-throws SQLException {
-PreparedStatement pstmt = conn.prepareStatement(
-"select * " +
-" from PriceVolume " +
-" where Ticker = ? and TransDate = ? order by TransDate DESC");
-pstmt.setString(1, ticker);
-pstmt.setString(2, date);
-ResultSet rs = pstmt.executeQuery();
-
-if (rs.next()) {
-System.out.printf("Ticker: %s Date: %s Open: %.2f, High: %.2f, " +
-" Low: %.2f, Close: %.2f, Volume: %.2f, AdjustedClose: %.2f %n",
-rs.getString("Ticker"), rs.getString("TransDate"),
-rs.getDouble("OpenPrice"), rs.getDouble("HighPrice"),
-rs.getDouble("LowPrice"), rs.getDouble("ClosePrice"),
-rs.getDouble("Volume"), rs.getDouble("AdjustedClose"));
-} else {
-System.out.printf("Ticker %s, Date %s not found.%n", ticker, date);
-}
-pstmt.close();
-}
+    Maintain a moving average of the closing prices over a 50-day window. So for
+    a given trading day d, the 50-day average is the average closing price for the 50
+    previous trading days (days d-50 to d-1).
+    2.8
+    If there are less than 51 days of data, do no trading and report a net gain of
+    zero and repeat from step 2 to get the next user input.
+    2.9
+    If there are more than 51 days of data, compute 50-day average for the first
+    fifty days. Proceeding forward from day 51 through the second-to-last trading day in
+    the data set, execute the following strategy:
+    2.9.1 Track current cash and shares, both of which start at zero. When buying
+    stock, cash decreases and shares increase. When selling stock, cash increases and
+    shares decrease. Since cash starts at zero, we must borrow money to buy the
+    initial shares. Disregard this complication.
+    2.9.2 (Buy criterion) If the close(d) < 50-day average and close(d) is less than
+    open(d) by 3% or more (close(d) / open(d) <= 0.97), buy 100 shares of the stock
+    at price open(d+1).
+    2.9.3 (Sell criterion) If the buy criterion is not met, then if shares >= 100 and
+    open(d) > 50-day average and open(d) exceeds close(d-1) by 1% or more
+    (open(d) / close(d-1) >= 1.01), sell 100 shares at price (open(d) + close(d))/2.
+    2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
+    transaction fee of $8.00.
+    2.9.5 If neither the buy nor the sell criterion is met, do not trade on that day.
+    2.9.6 Regardless of trading activity, update 50-day average to reflect the average
+    over the last 50 days, and continue with day d+1.2.10
+    After having processed the data through the second-to-last day, if there are
+    any shares remaining, on the last day add open(d) * shares remaining to cash to
+    account for the value of those remaining shares (No transaction fee applies to this).
 */
+  }
+}
