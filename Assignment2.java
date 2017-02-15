@@ -53,9 +53,10 @@ class Assignment2 {
             System.out.printf("Wrong number of arguments.%n");
           }
           else {
-/*******************************************************************************
-  This is where most of the interesting stuff happens
-*******************************************************************************/
+
+/*============================================================================/*
+  This is where the main functions get called
+/*----------------------------------------------------------------------------*/
             findCompanyName(ticker);
             if (numArgs == 3) {
               startDate = inputArgs[1];
@@ -66,7 +67,8 @@ class Assignment2 {
               setOfStockDays = runDates(ticker);
               investStrategy(setOfStockDays);
             }
-/******************************************************************************/
+/*----------------------------------------------------------------------------*/
+
           }
         } else {
           continueLoop = false;
@@ -81,7 +83,13 @@ class Assignment2 {
     }
   }
 
-  //Find a company with a given ticker
+/*============================================================================/*
+  findCompanyName
+
+  Given a stock ticker, this function queries the company relation to obtain the
+  company name associated with that ticker and prints it to the screen. If the
+  ticker is not in the database an error message is printed instead.
+/*============================================================================*/
   static void findCompanyName(String ticker) throws SQLException {
     PreparedStatement pstmt = conn.prepareStatement(
     "select Name " +
@@ -98,15 +106,23 @@ class Assignment2 {
   }
 
 
-/*******************************************************************************
-runDates
-Iterates through data  in reverse chronological order within a given date
-range (or all of the data for a ticker if no date range is given)
-  * Adds each day to an arrayList - this list is returned
-  * Checks for splits as it runs through the data and prints to screen
-*******************************************************************************/
+/*============================================================================/*
+  runDates
+
+  Queries the PriceVolume relation using a ticker and (optional) date range to
+  get the transaction dates for the given ticker.
+  Iterates through dates in reverse chronological order (or all of the data for
+  if no date range is given.) While it does this it also:
+
+    * Adds each day to an arrayList - this list is returned
+    * Checks for splits
+    * Automatically updates any old dates with new prices based on splits
+      (by maintaining a divisor)
+    *
+/*============================================================================*/
   static ArrayList<StockDay> runDates(String ticker, String ... dates)
   throws SQLException {
+    //Query database to get the transaction dates
     PreparedStatement pstmt = conn.prepareStatement(
     "select TransDate " +
     " from PriceVolume " +
@@ -115,55 +131,38 @@ range (or all of the data for a ticker if no date range is given)
     );
     pstmt.setString(1, ticker);
     ResultSet rs = pstmt.executeQuery();
-    boolean continueLoop = false;
-    String prevDate = null;
-    String currDate = null;
+
+    //Variables for looping through data
+    boolean runDate = false;
     ArrayList<StockDay> allDays = new ArrayList<StockDay>();
     StockDay currStockDay = null;
     StockDay prevStockDay = null;
+    String startDate = null;
+    String endDate = null;
+    String prevDate = null;
+    String currDate = null;
     int numSplits = 0;
     int numTradeDays = 0;
     int divisor = 1;
 
+    if (dates.length > 0) {
+      startDate = dates[0];
+      endDate = dates[1];
+    }
+
     while (rs.next()) {
       prevDate = currDate;
-      prevStockDay = currStockDay;
       currDate = rs.getString("TransDate");
+
+      //Start loop at the endDate
+      if (currDate.equals(endDate) || endDate == null) runDate = true;
+
+      if (runDate) {
+      prevStockDay = currStockDay;
       currStockDay = makeStockDay(ticker, currDate);
       currStockDay.adjustPrices(divisor);
 
-      // Check for Splits for given input dates
-      if (dates.length > 0) {
-        if (currDate.equals(dates[1]) ||
-        continueLoop == true) {
-
-          String splitType = findSplits(currStockDay, prevStockDay, divisor);
-          switch(splitType) {
-            case "2:1":
-              numSplits++;
-              divisor = divisor*2;
-              break;
-            case "3:1":
-              numSplits++;
-              divisor = divisor*3;
-              break;
-            case "3:2":
-              numSplits++;
-              divisor = divisor*(3/2);
-              break;
-            case "none":
-              break;
-          }
-
-          numTradeDays++;
-          allDays.add(currStockDay);
-          continueLoop = true;
-        } if (currDate.equals(dates[0])) {
-          continueLoop = false;
-        }
-      }
-      // Check for Splits for all dates (if not given input dates)
-      else {
+      // Check for Splits over the date range and update the divisor
         String splitType = findSplits(currStockDay, prevStockDay, divisor);
         switch(splitType) {
           case "2:1":
@@ -185,6 +184,9 @@ range (or all of the data for a ticker if no date range is given)
         numTradeDays++;
         allDays.add(currStockDay);
       }
+
+      //Stop loop when you have reached the startDate
+      if (currDate.equals(startDate)) runDate = false;
     }
 
     System.out.printf("%d splits in %d trading days%n",
@@ -194,64 +196,12 @@ range (or all of the data for a ticker if no date range is given)
     return allDays;
   }
 
-/*******************************************************************************
-  doTheThings
-*******************************************************************************/
-  //What are we doing here... we need to:
-  // Create a stock day for the current day
-  // run the split comparison against the previous day
-  // if there is a split, print it
-  // update the divisor
-  // at the end of everything print the split list
-  static String findSplits(StockDay currStockDay, StockDay prevStockDay,
-    int adjust)
-  throws SQLException {
-    // Check for splits
-    // Keep in mind that in this case, prevStockDay is the day on the previous
-    // line, but because the days are listed in revers chronological order
-    // prevStockDay is actually the following day
-    String splitType = "none";
 
-    if (prevStockDay != null) {
-      double currClosePrice = currStockDay.getClosingPrice();
-      double prevOpenPricePrice = prevStockDay.getOpeningPrice();
-      boolean didSplit = false;
-
-      // 2:1 split
-      if (Math.abs((currClosePrice/prevOpenPricePrice) - 2.0) < 0.20) {
-        didSplit = true;
-        splitType = "2:1";
-      }
-      // 3:1 split
-      if (Math.abs((currClosePrice/prevOpenPricePrice) - 3.0) < 0.30) {
-        didSplit = true;
-        splitType = "3:1";
-      }
-      // 3:2 split
-      if (Math.abs((currClosePrice/prevOpenPricePrice) - 1.5) < 0.15) {
-        didSplit = true;
-        splitType = "3:2";
-      }
-
-      if (didSplit == true) {
-        //System.out.println(splitType + " split on " + currDate);
-        String currDate = currStockDay.getDate();
-        System.out.printf("%s split on %s %.2f -> %.2f %n",
-        splitType, currDate,
-        currClosePrice*adjust, prevOpenPricePrice*adjust);
-      } else {
-        splitType = "none";
-      }
-    }
-    return splitType;
-  }
-
-
-/*******************************************************************************
+/*============================================================================/*
   makeStockDay
 
-  Create a StockDay object with a given set of data from PriceVolume relation
-*******************************************************************************/
+  Queries the PriceVolum relation and creates a StockDay object with the data
+/*============================================================================*/
   static StockDay makeStockDay(String ticker, String date)
   throws SQLException {
     StockDay thisStockDay = null;
@@ -279,6 +229,53 @@ range (or all of the data for a ticker if no date range is given)
 
     return thisStockDay;
   }
+
+
+/*============================================================================/*
+  findSplits
+
+  Compares two stock days to see if a stock split occured. If one does occur,
+  prints the type of split, the date, and the before/after split opening prices.
+  Returns the type of split that occured (or "none")
+/*============================================================================*/
+  static String findSplits(StockDay currStockDay, StockDay prevStockDay,
+    int adjust)
+  throws SQLException {
+    String splitType = "none";
+
+    if (prevStockDay != null) {
+      double currClosePrice = currStockDay.getClosingPrice();
+      double prevOpenPricePrice = prevStockDay.getOpeningPrice();
+      boolean didSplit = false;
+
+      // 2:1 split
+      if (Math.abs((currClosePrice/prevOpenPricePrice) - 2.0) < 0.20) {
+        didSplit = true;
+        splitType = "2:1";
+      }
+      // 3:1 split
+      if (Math.abs((currClosePrice/prevOpenPricePrice) - 3.0) < 0.30) {
+        didSplit = true;
+        splitType = "3:1";
+      }
+      // 3:2 split
+      if (Math.abs((currClosePrice/prevOpenPricePrice) - 1.5) < 0.15) {
+        didSplit = true;
+        splitType = "3:2";
+      }
+
+      if (didSplit == true) {
+        String currDate = currStockDay.getDate();
+        System.out.printf("%s split on %s %.2f -> %.2f %n",
+        splitType, currDate,
+        currClosePrice*adjust, prevOpenPricePrice*adjust);
+      } else {
+        splitType = "none";
+      }
+    }
+    return splitType;
+  }
+
 
 /*******************************************************************************
   investStrategy
