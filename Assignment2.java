@@ -166,7 +166,7 @@ range (or all of the data for a ticker if no date range is given)
   }
 
 /*******************************************************************************
-doTheThings
+  doTheThings
 *******************************************************************************/
   //What are we doing here... we need to:
   // Create a stock day for the current day
@@ -252,45 +252,85 @@ doTheThings
 /*******************************************************************************
   investStrategy
 
-  iterate through stock days in chronological order.
+  iterate through stock days in chronological order and execute stock strategy
 *******************************************************************************/
   static void investStrategy(ArrayList<StockDay> setOfStockDays) {
+    int dayCount = 1;
+    int numTransactions = 0;
+    double currAvg;
+    double closing50DaySum = 0;
+    double currCash = 0;
+    double currShares = 0;
     for(int i = setOfStockDays.size()-1; i >= 0; i--) {
-      StockDay   currStockDay = setOfStockDays.get(i);
-      System.out.printf("%s %.2f %.2f %n",
-        currStockDay.getDate(),
-        currStockDay.getOpeningPrice(),
-        currStockDay.getClosingPrice());
+      StockDay currStockDay = setOfStockDays.get(i);
+      /*
+          Maintain a moving average of the closing prices over a 50-day window. So for
+          a given trading day d, the 50-day average is the average closing price for the 50
+          previous trading days (days d-50 to d-1).
+      */
+
+
+      //If there are more than 51 days of data, compute 50-day average for the first
+      //fifty days. Proceeding forward from day 51 through the second-to-last trading day in
+      //the data set, execute the following strategy:
+      /*
+          2.9.1 Track current cash and shares, both of which start at zero. When buying
+          stock, cash decreases and shares increase. When selling stock, cash increases and
+          shares decrease. Since cash starts at zero, we must borrow money to buy the
+          initial shares. Disregard this complication.
+      */
+      if (dayCount > 50) {
+        if (dayCount == 51) System.out.printf("Executing investment strategy%n");
+        /*2.9.6 Regardless of trading activity, update 50-day average to reflect the average
+        over the last 50 days, and continue with day d+1*/
+        currAvg = closing50DaySum / 50;
+        closing50DaySum -= setOfStockDays.get(i+50).getClosingPrice();
+
+        /*2.9.2 (Buy criterion) If the close(d) < 50-day average and close(d) is less than
+        open(d) by 3% or more (close(d) / open(d) <= 0.97), buy 100 shares of the stock
+        at price open(d+1).*/
+        /* 2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
+        transaction fee of $8.00.*/
+        double closeD = currStockDay.getClosingPrice();
+        double openD = currStockDay.getOpeningPrice();
+        double closeDminus1 = setOfStockDays.get(i+1).getOpeningPrice();
+        double closeDplus1 = 0;
+        if (i > 0)
+          closeDplus1= setOfStockDays.get(i-1).getOpeningPrice();
+
+        if (closeD < currAvg &&
+        (closeD/openD) <= 0.97000001) {
+          currShares += 100;
+          currCash -= 100*closeDplus1;
+          currCash -= 8; //transaction fee
+          numTransactions++;
+        }
+
+        /*2.9.3 (Sell criterion) If the buy criterion is not met, then if shares >= 100 and
+        open(d) > 50-day average and open(d) exceeds close(d-1) by 1% or more
+        (open(d) / close(d-1) >= 1.01), sell 100 shares at price (open(d) + close(d))/2.*/
+        /* 2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
+        transaction fee of $8.00. */
+        else if (currShares >= 100 &&
+        openD > currAvg &&
+        (openD/closeDminus1) >= 1.00999999) {
+          currShares -= 100;
+          currCash += 100*((openD + closeD)/2);
+          currCash -= 8; //transaction fee
+          numTransactions++;
+        }
+
+        /*2.9.5 If neither the buy nor the sell criterion is met, do not trade on that day. */
+
+        /*After having processed the data through the second-to-last day, if there are
+        any shares remaining, on the last day add open(d) * shares remaining to cash to
+        account for the value of those remaining shares (No transaction fee applies to this).*/
+      }
+
+      closing50DaySum += currStockDay.getClosingPrice();
+      dayCount++;
     }
-/*
-    Maintain a moving average of the closing prices over a 50-day window. So for
-    a given trading day d, the 50-day average is the average closing price for the 50
-    previous trading days (days d-50 to d-1).
-    2.8
-    If there are less than 51 days of data, do no trading and report a net gain of
-    zero and repeat from step 2 to get the next user input.
-    2.9
-    If there are more than 51 days of data, compute 50-day average for the first
-    fifty days. Proceeding forward from day 51 through the second-to-last trading day in
-    the data set, execute the following strategy:
-    2.9.1 Track current cash and shares, both of which start at zero. When buying
-    stock, cash decreases and shares increase. When selling stock, cash increases and
-    shares decrease. Since cash starts at zero, we must borrow money to buy the
-    initial shares. Disregard this complication.
-    2.9.2 (Buy criterion) If the close(d) < 50-day average and close(d) is less than
-    open(d) by 3% or more (close(d) / open(d) <= 0.97), buy 100 shares of the stock
-    at price open(d+1).
-    2.9.3 (Sell criterion) If the buy criterion is not met, then if shares >= 100 and
-    open(d) > 50-day average and open(d) exceeds close(d-1) by 1% or more
-    (open(d) / close(d-1) >= 1.01), sell 100 shares at price (open(d) + close(d))/2.
-    2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
-    transaction fee of $8.00.
-    2.9.5 If neither the buy nor the sell criterion is met, do not trade on that day.
-    2.9.6 Regardless of trading activity, update 50-day average to reflect the average
-    over the last 50 days, and continue with day d+1.2.10
-    After having processed the data through the second-to-last day, if there are
-    any shares remaining, on the last day add open(d) * shares remaining to cash to
-    account for the value of those remaining shares (No transaction fee applies to this).
-*/
+    System.out.printf("Transactions executed: %d%n", numTransactions);
+    System.out.printf("Net cash: %.2f%n", currCash);
   }
 }
