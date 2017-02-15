@@ -136,10 +136,25 @@ range (or all of the data for a ticker if no date range is given)
       if (dates.length > 0) {
         if (currDate.equals(dates[1]) ||
         continueLoop == true) {
-          if (findSplits(currStockDay, prevStockDay, divisor)) {
-            numSplits++;
-            divisor = divisor*2;
+
+          String splitType = findSplits(currStockDay, prevStockDay, divisor);
+          switch(splitType) {
+            case "2:1":
+              numSplits++;
+              divisor = divisor*2;
+              break;
+            case "3:1":
+              numSplits++;
+              divisor = divisor*3;
+              break;
+            case "3:2":
+              numSplits++;
+              divisor = divisor*(3/2);
+              break;
+            case "none":
+              break;
           }
+
           numTradeDays++;
           allDays.add(currStockDay);
           continueLoop = true;
@@ -149,10 +164,24 @@ range (or all of the data for a ticker if no date range is given)
       }
       // Check for Splits for all dates (if not given input dates)
       else {
-        if (findSplits(currStockDay, prevStockDay, divisor)) {
-          numSplits++;
-          divisor = divisor*2;
+        String splitType = findSplits(currStockDay, prevStockDay, divisor);
+        switch(splitType) {
+          case "2:1":
+            numSplits++;
+            divisor = divisor*2;
+            break;
+          case "3:1":
+            numSplits++;
+            divisor = divisor*3;
+            break;
+          case "3:2":
+            numSplits++;
+            divisor = divisor*(3/2);
+            break;
+          case "none":
+            break;
         }
+
         numTradeDays++;
         allDays.add(currStockDay);
       }
@@ -174,18 +203,19 @@ range (or all of the data for a ticker if no date range is given)
   // if there is a split, print it
   // update the divisor
   // at the end of everything print the split list
-  static boolean findSplits(StockDay currStockDay, StockDay prevStockDay,
+  static String findSplits(StockDay currStockDay, StockDay prevStockDay,
     int adjust)
   throws SQLException {
     // Check for splits
     // Keep in mind that in this case, prevStockDay is the day on the previous
     // line, but because the days are listed in revers chronological order
     // prevStockDay is actually the following day
+    String splitType = "none";
+
     if (prevStockDay != null) {
       double currClosePrice = currStockDay.getClosingPrice();
       double prevOpenPricePrice = prevStockDay.getOpeningPrice();
       boolean didSplit = false;
-      String splitType = "none";
 
       // 2:1 split
       if (Math.abs((currClosePrice/prevOpenPricePrice) - 2.0) < 0.20) {
@@ -209,10 +239,11 @@ range (or all of the data for a ticker if no date range is given)
         System.out.printf("%s split on %s %.2f -> %.2f %n",
         splitType, currDate,
         currClosePrice*adjust, prevOpenPricePrice*adjust);
-        return true;
+      } else {
+        splitType = "none";
       }
     }
-    return false;
+    return splitType;
   }
 
 
@@ -292,11 +323,11 @@ range (or all of the data for a ticker if no date range is given)
         transaction fee of $8.00.*/
         if (closeD < currAvg &&
         (closeD/openD) <= 0.97000001) {
-          System.out.println("Buying. Starting currShares/currCash: " + currShares + " /" + currCash);
+          //System.out.println("Buying. Starting currShares/currCash: " + currShares + " /" + currCash);
           currShares += 100;
           currCash -= 100*closeDplus1;
           currCash -= 8; //transaction fee
-          System.out.println("Ending currShares/currCash: " + currShares + currCash);
+          //System.out.println("Ending currShares/currCash: " + currShares + currCash);
           numTransactions++;
         }
 
