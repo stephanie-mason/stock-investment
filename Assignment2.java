@@ -253,6 +253,7 @@ range (or all of the data for a ticker if no date range is given)
   investStrategy
 
   iterate through stock days in chronological order and execute stock strategy
+  outlined in the function
 *******************************************************************************/
   static void investStrategy(ArrayList<StockDay> setOfStockDays) {
     int dayCount = 1;
@@ -261,26 +262,24 @@ range (or all of the data for a ticker if no date range is given)
     double closing50DaySum = 0;
     double currCash = 0;
     double currShares = 0;
-    for(int i = setOfStockDays.size()-1; i >= 0; i--) {
+
+    for(int i = setOfStockDays.size()-1; i > 0; i--) {
       StockDay currStockDay = setOfStockDays.get(i);
       /*
           Maintain a moving average of the closing prices over a 50-day window. So for
           a given trading day d, the 50-day average is the average closing price for the 50
           previous trading days (days d-50 to d-1).
-      */
 
-
-      //If there are more than 51 days of data, compute 50-day average for the first
-      //fifty days. Proceeding forward from day 51 through the second-to-last trading day in
-      //the data set, execute the following strategy:
-      /*
-          2.9.1 Track current cash and shares, both of which start at zero. When buying
-          stock, cash decreases and shares increase. When selling stock, cash increases and
-          shares decrease. Since cash starts at zero, we must borrow money to buy the
-          initial shares. Disregard this complication.
+          If there are more than 51 days of data, compute 50-day average for the first
+          fifty days. Proceeding forward from day 51 through the second-to-last trading day in
+          the data set, execute the following strategy:
       */
       if (dayCount > 50) {
         if (dayCount == 51) System.out.printf("Executing investment strategy%n");
+        double closeD = currStockDay.getClosingPrice();
+        double openD = currStockDay.getOpeningPrice();
+        double closeDminus1 = setOfStockDays.get(i+1).getOpeningPrice(); // previous day
+        double closeDplus1 = setOfStockDays.get(i-1).getOpeningPrice(); // next day
         /*2.9.6 Regardless of trading activity, update 50-day average to reflect the average
         over the last 50 days, and continue with day d+1*/
         currAvg = closing50DaySum / 50;
@@ -291,18 +290,13 @@ range (or all of the data for a ticker if no date range is given)
         at price open(d+1).*/
         /* 2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
         transaction fee of $8.00.*/
-        double closeD = currStockDay.getClosingPrice();
-        double openD = currStockDay.getOpeningPrice();
-        double closeDminus1 = setOfStockDays.get(i+1).getOpeningPrice();
-        double closeDplus1 = 0;
-        if (i > 0)
-          closeDplus1= setOfStockDays.get(i-1).getOpeningPrice();
-
         if (closeD < currAvg &&
         (closeD/openD) <= 0.97000001) {
+          System.out.println("Buying. Starting currShares/currCash: " + currShares + " /" + currCash);
           currShares += 100;
           currCash -= 100*closeDplus1;
           currCash -= 8; //transaction fee
+          System.out.println("Ending currShares/currCash: " + currShares + currCash);
           numTransactions++;
         }
 
@@ -325,12 +319,19 @@ range (or all of the data for a ticker if no date range is given)
         /*After having processed the data through the second-to-last day, if there are
         any shares remaining, on the last day add open(d) * shares remaining to cash to
         account for the value of those remaining shares (No transaction fee applies to this).*/
+        if (i == 1) {
+          openD = setOfStockDays.get(0).getOpeningPrice();
+          currCash += openD*currShares;
+        }
       }
-
       closing50DaySum += currStockDay.getClosingPrice();
       dayCount++;
     }
-    System.out.printf("Transactions executed: %d%n", numTransactions);
-    System.out.printf("Net cash: %.2f%n", currCash);
+    System.out.println("day count: " + dayCount);
+    if (dayCount > 50) {
+      System.out.printf("Transactions executed: %d%n", numTransactions);
+      System.out.printf("Net cash: %.2f%n", currCash);
+    }
+
   }
 }
