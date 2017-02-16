@@ -62,10 +62,14 @@ class Assignment2 {
               startDate = inputArgs[1];
               endDate = inputArgs [2];
               setOfStockDays = runDates(ticker, startDate, endDate);
-              investStrategy(setOfStockDays);
+              if(setOfStockDays.size() > 50)
+                investStrategy(setOfStockDays);
+              else System.out.println("Net cash: 0");
             }	else {
               setOfStockDays = runDates(ticker);
-              investStrategy(setOfStockDays);
+              if(setOfStockDays.size() > 50)
+                investStrategy(setOfStockDays);
+              else System.out.printf("Net cash: 0%n%n");
             }
 /*----------------------------------------------------------------------------*/
 
@@ -118,7 +122,6 @@ class Assignment2 {
     * Checks for splits
     * Automatically updates any old dates with new prices based on splits
       (by maintaining a divisor)
-    *
 /*============================================================================*/
   static ArrayList<StockDay> runDates(String ticker, String ... dates)
   throws SQLException {
@@ -143,7 +146,7 @@ class Assignment2 {
     String currDate = null;
     int numSplits = 0;
     int numTradeDays = 0;
-    int divisor = 1;
+    double divisor = 1;
 
     if (dates.length > 0) {
       startDate = dates[0];
@@ -166,16 +169,22 @@ class Assignment2 {
         String splitType = findSplits(currStockDay, prevStockDay, divisor);
         switch(splitType) {
           case "2:1":
-            numSplits++;
+            currStockDay.adjustPrices(1/divisor);
             divisor = divisor*2;
+            currStockDay.adjustPrices(divisor);
+            numSplits++;
             break;
           case "3:1":
-            numSplits++;
-            divisor = divisor*3;
+          currStockDay.adjustPrices(1/divisor);
+          divisor = divisor*3;
+          currStockDay.adjustPrices(divisor);
+          numSplits++;
             break;
           case "3:2":
-            numSplits++;
-            divisor = divisor*(3/2);
+          currStockDay.adjustPrices(1/divisor);
+          divisor = divisor*1.5;
+          currStockDay.adjustPrices(divisor);
+          numSplits++;
             break;
           case "none":
             break;
@@ -189,10 +198,9 @@ class Assignment2 {
       if (currDate.equals(startDate)) runDate = false;
     }
 
-    System.out.printf("%d splits in %d trading days%n",
+    System.out.printf("%d splits in %d trading days%n%n",
     numSplits, numTradeDays);
     pstmt.close();
-
     return allDays;
   }
 
@@ -200,7 +208,7 @@ class Assignment2 {
 /*============================================================================/*
   makeStockDay
 
-  Queries the PriceVolum relation and creates a StockDay object with the data
+  Queries the PriceVolume relation and creates a StockDay object with the data
 /*============================================================================*/
   static StockDay makeStockDay(String ticker, String date)
   throws SQLException {
@@ -239,7 +247,7 @@ class Assignment2 {
   Returns the type of split that occured (or "none")
 /*============================================================================*/
   static String findSplits(StockDay currStockDay, StockDay prevStockDay,
-    int adjust)
+    double adjust)
   throws SQLException {
     String splitType = "none";
 
@@ -269,70 +277,65 @@ class Assignment2 {
         System.out.printf("%s split on %s %.2f -> %.2f %n",
         splitType, currDate,
         currClosePrice*adjust, prevOpenPricePrice*adjust);
-      } else {
-        splitType = "none";
       }
     }
     return splitType;
   }
 
 
-/*******************************************************************************
+/*============================================================================/*
   investStrategy
 
-  iterate through stock days in chronological order and execute stock strategy
-  outlined in the function
-*******************************************************************************/
+  * Maintains a moving average of the 50 days prior to the current trading date
+  * Buys 100 shares at price open(d+1) if:
+    * close(d) < 50-day average AND
+    * close(d) is less than open(d) by 3% or more
+  * Sells 100 shares at price (open(d) + close(d))/2 if :
+    * Buy criterion is not met
+    * Shares >= 100 AND
+    * open(d) > 50-day average AND
+    * open(d) exceeds closde(d-1) by 10% or more
+  (Where d is the current trading day, d+1 is the next trading day, and d-1 is
+  the previous trading day; close() and open() refer to the closing and opening
+  prices for that day)
+  * There is an $8.00 transaction fee for all buy/sell transactions
+  * If neither buy nor sell criterion are met, do not trade on that day
+/*============================================================================*/
   static void investStrategy(ArrayList<StockDay> setOfStockDays) {
-    int dayCount = 1;
+    int dayCount = 0;
     int numTransactions = 0;
+    int currShares = 0;
+    double currCash = 0;
     double currAvg;
     double closing50DaySum = 0;
-    double currCash = 0;
-    double currShares = 0;
+
+    System.out.printf("Executing investment strategy%n");
 
     for(int i = setOfStockDays.size()-1; i > 0; i--) {
+      dayCount++;
       StockDay currStockDay = setOfStockDays.get(i);
-      /*
-          Maintain a moving average of the closing prices over a 50-day window. So for
-          a given trading day d, the 50-day average is the average closing price for the 50
-          previous trading days (days d-50 to d-1).
 
-          If there are more than 51 days of data, compute 50-day average for the first
-          fifty days. Proceeding forward from day 51 through the second-to-last trading day in
-          the data set, execute the following strategy:
-      */
       if (dayCount > 50) {
-        if (dayCount == 51) System.out.printf("Executing investment strategy%n");
-        double closeD = currStockDay.getClosingPrice();
         double openD = currStockDay.getOpeningPrice();
-        double closeDminus1 = setOfStockDays.get(i+1).getOpeningPrice(); // previous day
-        double closeDplus1 = setOfStockDays.get(i-1).getOpeningPrice(); // next day
-        /*2.9.6 Regardless of trading activity, update 50-day average to reflect the average
-        over the last 50 days, and continue with day d+1*/
+        double openDminus1 = setOfStockDays.get(i+1).getOpeningPrice();
+        double openDplus1 = setOfStockDays.get(i-1).getOpeningPrice();
+        double closeD = currStockDay.getClosingPrice();
+        double closeDminus1 = setOfStockDays.get(i+1).getClosingPrice();
+        double closeDplus1 = setOfStockDays.get(i-1).getClosingPrice();
+
+        //Moving average is of 50 days prior to current trading day
         currAvg = closing50DaySum / 50;
         closing50DaySum -= setOfStockDays.get(i+50).getClosingPrice();
 
-        /*2.9.2 (Buy criterion) If the close(d) < 50-day average and close(d) is less than
-        open(d) by 3% or more (close(d) / open(d) <= 0.97), buy 100 shares of the stock
-        at price open(d+1).*/
-        /* 2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
-        transaction fee of $8.00.*/
+        //Buy criterion
         if (closeD < currAvg &&
         (closeD/openD) <= 0.97000001) {
-          //System.out.println("Buying. Starting currShares/currCash: " + currShares + " /" + currCash);
           currShares += 100;
-          currCash -= 100*closeDplus1;
+          currCash -= 100*openDplus1;
           currCash -= 8; //transaction fee
-          //System.out.println("Ending currShares/currCash: " + currShares + currCash);
           numTransactions++;
         }
-
-        /*2.9.3 (Sell criterion) If the buy criterion is not met, then if shares >= 100 and
-        open(d) > 50-day average and open(d) exceeds close(d-1) by 1% or more
-        (open(d) / close(d-1) >= 1.01), sell 100 shares at price (open(d) + close(d))/2.*/
-        /* 2.9.4 (Transaction Fee) For either a buy or sell transaction, cash is reduced by a
-        transaction fee of $8.00. */
+        //Sell criterion
         else if (currShares >= 100 &&
         openD > currAvg &&
         (openD/closeDminus1) >= 1.00999999) {
@@ -342,24 +345,17 @@ class Assignment2 {
           numTransactions++;
         }
 
-        /*2.9.5 If neither the buy nor the sell criterion is met, do not trade on that day. */
-
-        /*After having processed the data through the second-to-last day, if there are
-        any shares remaining, on the last day add open(d) * shares remaining to cash to
-        account for the value of those remaining shares (No transaction fee applies to this).*/
+        //Final day, evaluate net worth based on current shares
         if (i == 1) {
           openD = setOfStockDays.get(0).getOpeningPrice();
           currCash += openD*currShares;
         }
       }
+
       closing50DaySum += currStockDay.getClosingPrice();
-      dayCount++;
-    }
-    System.out.println("day count: " + dayCount);
-    if (dayCount > 50) {
-      System.out.printf("Transactions executed: %d%n", numTransactions);
-      System.out.printf("Net cash: %.2f%n", currCash);
     }
 
+    System.out.printf("Transactions executed: %d%n", numTransactions);
+    System.out.printf("Net cash: %.2f%n%n", currCash);
   }
 }

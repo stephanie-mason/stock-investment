@@ -58,7 +58,7 @@ public class StockDay {
   }
 
   // Method to adjust the prices of stocks if a split has occured
-  public void adjustPrices(int divisor) {
+  public void adjustPrices(double divisor) {
     this.openingPrice = this.openingPrice / divisor;
     this.highPrice = this.highPrice / divisor;
     this.lowPrice = this.lowPrice / divisor;
