@@ -166,10 +166,6 @@ throws SQLException {
     prevDate = currDate;
     currDate = rs.getString("TransDate");
 
-    //Start loop at the endDate
-    //if (currDate.equals(endDate) || endDate == null) runDate = true;
-
-  //  if (runDate) {
     prevStockDay = currStockDay;
     currStockDay = makeStockDay(ticker, currDate);
     currStockDay.adjustPrices(divisor);
@@ -202,10 +198,6 @@ throws SQLException {
       numTradeDays++;
       allDays.add(currStockDay);
     }
-
-    //Stop loop when you have reached the startDate
-   // if (currDate.equals(startDate)) runDate = false;
-  //}
 
   System.out.printf("%d splits in %d trading days%n%n",
   numSplits, numTradeDays);
